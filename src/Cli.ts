@@ -1,7 +1,6 @@
 import inquirer from 'inquirer';
 import { pool, connectToDb } from './connection.js';
 
-
 await connectToDb();
 
 type Department = { id: number, name: string };
@@ -9,79 +8,59 @@ type Role = { id: number, title: string, salary: number, department: number };
 type Employee = { id: number | null, first_name: string, last_name: string, role_id: number, manager_id: number };
 
 async function startCli() {
-    const answer = await inquirer.prompt({
-        type: 'list',
-        name: 'action',
-        message: 'What would you like to do?',
-        choices: [
-            'View All Departments',
-            'View All Roles',
-            'View All Employees',
-            'Add a Department',
-            'Add a Role',
-            'Add an Employee',
-            'Update Employee Role',
-            'Exit',
-        ],
-    });
-
-    switch (answer.action) {
-        case 'View All Departments':
-            await viewAllDepartments();
-            break;
-        case 'View All Roles':
-            await viewAllRoles();
-            break;
-        case 'View All Employees':
-            await viewAllEmployees();
-            break;
-        case 'Add a Department':
-            await addNewDepartment();
-            break;
-        case 'Add a Role':
-            await addNewRole();
-            break;
-        case 'Add an Employee':
-            await addNewEmployee();
-            break;
-        case 'Update Employee Role':
-            await updateEmployeeRole();
-            break;
-        default:
-            await pool.end();
-            process.exit();
-    }
-    startCli();
+    inquirer
+        .prompt({
+            type: 'list',
+            name: 'whatYouCanDo',
+            message: 'What would you like to do?',
+            choices: [
+                { name: 'View All Departments', value: viewAllDepartments },
+                { name: 'View All Roles', value: viewAllRoles },
+                { name: 'View All Employees', value: viewAllEmployees },
+                { name: 'Add a Department', value: addNewDepartment },
+                { name: 'Add a Role', value: addNewRole },
+                { name: 'Add an Employee', value: addNewEmployee },
+                { name: 'Update Employee Role', value: updateEmployeeRole },
+                { name: 'Exit', value: exitProgram },
+            ],
+        })
+        .then((answer) => answer.whatYouCanDo()) // Call the corresponding function
+        .then(startCli) // Call startCli
+        .catch((error) => console.error(error)); // Handle any errors
 }
 
 // view all departments
 async function viewAllDepartments() {
     const query = 'SELECT id AS department_id, name AS department_name FROM department';
     const result = await pool.query(query);
+    
     console.table(result.rows);
 }
+
 // view all employees
 async function viewAllEmployees() {
     const query = `
-      SELECT employee.id, employee.first_name, employee.last_name, roles.title, department.name AS department, roles.salary, CONCAT(manager.first_name, ' ', manager.last_name) AS manager
-      FROM employee
-      LEFT JOIN roles ON employee.role_id = roles.id
-      LEFT JOIN department ON roles.department = department.id
-      LEFT JOIN employee manager ON manager.id = employee.manager_id
+        SELECT employee.id, employee.first_name, employee.last_name, roles.title, department.name AS department, roles.salary, CONCAT(manager.first_name, ' ', manager.last_name) AS manager
+        FROM employee
+        LEFT JOIN roles ON employee.role_id = roles.id
+        LEFT JOIN department ON roles.department = department.id
+        LEFT JOIN employee manager ON manager.id = employee.manager_id
     `;
     const result = await pool.query(query);
     console.table(result.rows);
 }
+
 // view all roles
 async function viewAllRoles() {
     const query = `
-    SELECT roles.id AS role_id, roles.title AS role_title, roles.salary AS role_salary, department.name AS department_name
-    From roles
-    LEFT JOIN department ON roles.department = department.id
+        SELECT roles.id AS role_id, roles.title AS role_title, roles.salary AS role_salary, department.name AS department_name
+        FROM roles
+        LEFT JOIN department ON roles.department = department.id
     `;
     const result = await pool.query(query);
     console.table(result.rows);
-};
+}
+
 // add a department
 async function addNewDepartment() {
     const answer = await inquirer.prompt({
@@ -93,6 +72,7 @@ async function addNewDepartment() {
     await pool.query(query, [answer.department_name]);
     console.log('Department added successfully!');
 }
+
 // add a role
 async function addNewRole() {
     const existingDepartment = await pool.query('SELECT * FROM department');
@@ -129,7 +109,7 @@ async function addNewEmployee() {
     const rolesOptions = existingRoles.rows.map(({ id, title }: Role) => ({
         name: title,
         value: id,
-    }));;
+    }));
     const existingEmployee = await pool.query('SELECT * FROM employee');
     const managerOptions = existingEmployee.rows.map(({ id, first_name, last_name }: Employee) => ({
         name: `${first_name} ${last_name}`,
@@ -165,8 +145,8 @@ async function addNewEmployee() {
     const query = 'INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES ($1, $2, $3, $4)';
     await pool.query(query, [answer.first_name, answer.last_name, answer.role_id, answer.manager_id]);
     console.log('Employee has been added to the list!');
-
 }
+
 // update an employee role
 async function updateEmployeeRole() {
     const existingEmployee = await pool.query('SELECT * FROM employee');
@@ -199,5 +179,12 @@ async function updateEmployeeRole() {
     const query = "UPDATE employee SET role_id = $1 WHERE id = $2";
     await pool.query(query, [answer.role_id, answer.employee_id]);
     console.log('Employee role has been updated successfully');
-};
+}
+
+// exit program
+async function exitProgram() {
+    await pool.end();
+    process.exit();
+}
+
 startCli();
